@@ -30,7 +30,7 @@ The default command is "./PCSP NYC q1 A2\\\*D1\\\*A2\\\* 10". Note that we need 
 
 ./Dijkstra NYC q1 \\(D1\\|C1\\|B1\\|B5\\|A5\\|A1\\|D5\\|C5\\|D3\\|A3\\)\\*
 
-When the algorithm is executed, the screen will output log information, such as the tree time, indexing time, index size, etc. For each query file, it will show the query time in microseconds. The query answers are stored in the folder "data/[network name]/".
+When the algorithm is executed, the screen will output log information, such as the DFA states, transition functions, tree time, indexing time, index size, etc. For each query file, it will show the query time in microseconds. The query answers are stored in the folder "data/[network name]/".
 
 ### Datasets
 
