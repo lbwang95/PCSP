@@ -1,4 +1,4 @@
-# PCSP: Efficient Label-Constrained Shortest Path Querying in Road Networks
+# PCSP: Efficiently Answering Label-Constrained Shortest Path Queries on Road Networks
 
 ### Environment
 
