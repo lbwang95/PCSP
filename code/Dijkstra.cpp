@@ -85,6 +85,7 @@ void Reg2minDFA(string str1){
 double df[MAX_V][MAX_NS], db[MAX_V][MAX_NS];
 int rtrans[MAX_NS][26];
 double DijkstraQuery(int s, int t){
+	//use bidirectional search to speed up
     optw = DBL_MAX;
     if (s == t)
         return 0;

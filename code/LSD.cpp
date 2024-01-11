@@ -4,7 +4,7 @@ using namespace std;
 #define settype int
 typedef pair<double, int> DI;
 typedef pair<int, int> II;
-typedef unordered_map<settype, double> USD;
+typedef unordered_map<settype, double> USD;//from label sets to distances
 typedef pair<settype, double> SD;
 typedef pair<int, vector<SD>> IV;
 const int MAX_V = 1070386;

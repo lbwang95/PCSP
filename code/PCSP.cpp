@@ -7,13 +7,13 @@ using namespace std;
 typedef pair<double, int> DI;
 typedef pair<int, int> II;
 typedef unordered_map<int, double> UID;
-typedef unordered_map<int, UID> UIID;
-typedef pair<double, UID> DUID;
+typedef unordered_map<int, UID> UIID; //mapping state q q' to distance for P_vw and P_wv
+typedef pair<double, UID> DUID;// for P_vw^1 and P_wv^2 mapping state q to distance
 typedef pair<int, UIID> IV;
 typedef long long ll;
 const int MAX_V = 1070386;
 int N, M;//# of vertices and edges
-long long hopsize, npathConcat;//# of path concatenations
+long long hopsize, npathConcat;//# of hoplinks and path concatenations
 double optw = DBL_MAX;//optimal answer
 int treeheight = 0, treewidth = 0, treeavgheight = 0;
 
@@ -25,18 +25,19 @@ typedef struct node{
     vector<int> X;
 };
 node T[MAX_V];
-vector<IV> L1[MAX_V], L2[MAX_V];//supersets
-vector<DUID> PL1[MAX_V], PL2[MAX_V];//index
+vector<IV> L1[MAX_V], L2[MAX_V];//supersets //mapping state q q' to distance for P_vw and P_wv
+vector<DUID> PL1[MAX_V], PL2[MAX_V];//index for P_vw^1 and P_wv^2 mapping state q to distance
 vector<int> anc[MAX_V];
 int root = -1;
 unordered_map<int, UIID> adj[MAX_V];//contains only edges to higher rank
 unordered_map<int,int> adjo[MAX_V], adjT[MAX_V];//contains all the edges
-UIID char2mat[27];
+UIID char2mat[27];//from an edge label to all transitions
 DFA minDfa;
 void Reg2minDFA(string str1){
 	//string str = "(a|b)*abb";
 	//string str = "(a|b)*c|z*";
     string oristr = "";
+	//transform the label to a letter
     for (int i = 0; i < str1.size();i++){
         if (str1[i] == ' ')
             continue;
@@ -52,6 +53,7 @@ void Reg2minDFA(string str1){
     }
     string str = infixToSuffix(oristr);
 	int i, j;
+	//NFA DFA initialization
 	for(i = 0; i < MAX_NS; i++){
 		NfaStates[i].index = i;
 		NfaStates[i].input = '#';
@@ -75,11 +77,11 @@ void Reg2minDFA(string str1){
 		}
 	}
 	
-	NFA n = strToNfa(str);
+	NFA n = strToNfa(str);//string to NFA
 	//printNFA(n);
-	DFA d = nfaToDfa(n, str);
+	DFA d = nfaToDfa(n, str);//NFA to DFA
 	//printDFA(d);
-	minDfa = minDFA(d);
+	minDfa = minDFA(d);//DFA minimization
 	printMinDFA(minDfa);
     string teststr = "bbbpppppp";
     printf("%s: %d DFA states\n", oristr.c_str(), minDfaStateNum);
@@ -189,6 +191,7 @@ void PCSPJoin(UIID &P1, UIID &P2, UIID &res){
 
 int descnt[MAX_V];
 void treedec(){
+	//follow the order to do MDE algorithm
     for (int i = 0; i < N; i++){
         int v = ordergen[i];
         if(i%100000==0)
@@ -216,7 +219,7 @@ void treedec(){
             }
         }
     }
-    //from bottom to top
+    //from bottom to top set the parent
     for (int i = 0; i < ordergen.size();i++){
         int v = ordergen[i];
         sort(T[v].X.begin(), T[v].X.end(), cmp);
@@ -263,16 +266,16 @@ void generateLabel4v(int v){
                 continue;
             }
             if (T[w].ran <= T[u].ran){
-                PCSPJoin(adj[v][w], L1[w][i].second, res1);
-                PCSPJoin(L2[w][i].second, adj[w][v], res2);
+                PCSPJoin(adj[v][w], L1[w][i].second, res1); //vw wu
+                PCSPJoin(L2[w][i].second, adj[w][v], res2);//uw wv
             }
             else{//w>u, w has been in j-th ancarray //ancarray[v][j] not used because need sorting ancarray
-                PCSPJoin(adj[v][w], L2[u][ancarray[v][j]].second, res1);
-                PCSPJoin(L1[u][ancarray[v][j]].second, adj[w][v], res2);
+                PCSPJoin(adj[v][w], L2[u][ancarray[v][j]].second, res1);//vw wu
+                PCSPJoin(L1[u][ancarray[v][j]].second, adj[w][v], res2);//uw wv
             }
         }
-        L1[v].push_back(IV(u, res1));
-        L2[v].push_back(IV(u, res2));
+        L1[v].push_back(IV(u, res1));//vu
+        L2[v].push_back(IV(u, res2));//uv
         //printf("%d %d:\n", v+1, u+1);
         //printUIID(res1);
         //printUIID(res2);
@@ -303,11 +306,12 @@ void labeling(){
             printf("%d %d\n", iter, treeheight);
         iter += 1;
     }
+	//extract the two sets from supersets
     for (int i = 0; i <= N; i++){
         for (int j = 0; j < L1[i].size();j++){
             UID tmp;
             uncons1[i].push_back(DBL_MAX);
-            if(L1[i][j].second.count(minDfa.startState)){
+            if(L1[i][j].second.count(minDfa.startState)){//only consider initial state
                 double maxw = DBL_MAX;
                 UID::iterator it;
                 for (it = L1[i][j].second[minDfa.startState].begin(); it != L1[i][j].second[minDfa.startState].end();it++){
@@ -331,7 +335,7 @@ void labeling(){
                 UID::iterator iit;
                 double maxw = DBL_MAX;
                 for (iit = it->second.begin(); iit != it->second.end();iit++){
-                    if(finalFlag[iit->first])
+                    if(finalFlag[iit->first])//only consider final states
                         maxw = min(maxw, iit->second);
                 }
                 tmpP[it->first] = maxw;
@@ -422,7 +426,7 @@ void preprocessPrunedSep(int K){
     int tothit = 0;
     default_random_engine gen(time(NULL));
     uniform_int_distribution<int> st(0, N - 1);
-    for (int nq = 0; nq < 1000000; nq++){
+    for (int nq = 0; nq < 1000000; nq++){//use 1000000 queries to find top-K frequent separators
         int s = st(gen), t = st(gen);
         if (s == t)
             continue;
@@ -558,153 +562,6 @@ void save(string filename){
     of.close();
 }
 
-double PCSPQuery(int s, int t){
-    optw = DBL_MAX;
-    if (s == t)
-        return 0;
-    s--, t--;
-    vector<int> ancs, anct;
-    int u1 = s, l = -1;
-    while (u1 != MAX_V){
-        ancs.push_back(u1);
-        u1 = T[u1].parent;
-    }
-    u1 = t;
-    while (u1 != MAX_V){
-        anct.push_back(u1);
-        u1 = T[u1].parent;
-    }
-    int i = ancs.size() - 1, j = anct.size() - 1, k = -1;
-    unordered_map<int, int> inds, indt;
-    while (i != -1 && j != -1){
-        if (ancs[i] == anct[j]){
-            inds[ancs[i]] = i;
-            indt[anct[j]] = j;
-            i--, j--, k++;
-        }
-        else
-            break;
-    }
-    if(i==-1)
-        l = ancs[0];
-    else if(j==-1)
-        l = anct[0];
-    else
-        l = ancs[i + 1];
-    int ind;
-    if (l == s){
-        UIID P = L2[t][ancs.size() - 1].second;
-        if(P.count(minDfa.startState)){
-            UID P1 = P[minDfa.startState];
-            UID::iterator it1;
-            for (it1 = P1.begin(); it1 != P1.end(); it1++){
-                if(finalFlag[it1->first])
-                    optw = min(optw, it1->second);
-            }
-        }       
-    }
-    else if (l == t){
-        UIID P = L1[s][anct.size() - 1].second;
-        if(P.count(minDfa.startState)){
-            UID P1 = P[minDfa.startState];
-            UID::iterator it1;
-            for (it1 = P1.begin(); it1 != P1.end(); it1++){
-                if(finalFlag[it1->first])
-                    optw = min(optw, it1->second);
-            }
-        }
-    }
-    else{
-        int cs = ancs[i], ct = anct[j];
-        l = (ancarray[cs].size() < ancarray[ct].size()) ? cs : ct;
-        hopsize += ancarray[l].size() - 1;
-        //printf("%d %d", mtc, indH);
-        for (int i = 0; i + 1 < ancarray[l].size(); i++)
-        {
-            ind = ancarray[l][i];
-            UIID P1 = L1[s][ind].second, P2 = L2[t][ind].second;
-            UIID::iterator it1, it2;
-            UID::iterator iit1, iit2;
-            for (iit1 = P1[minDfa.startState].begin(); iit1 != P1[minDfa.startState].end(); iit1++){
-                int q = iit1->first;
-                if(P2.count(q)){
-                    for (iit2 = P2[q].begin(); iit2 != P2[q].end(); iit2++){
-                        if(finalFlag[iit2->first])
-                            optw = min(optw, iit1->second + iit2->second);
-                    }
-                }
-            }
-        }
-    }
-    //printf("%f\n", optw);
-    if(optw==DBL_MAX)
-        optw = -1;
-    return optw;
-}
-double PCSPQueryI(int s, int t){
-    optw = DBL_MAX;
-    if (s == t)
-        return 0;
-    s--, t--;
-    vector<int> ancs, anct;
-    int u1 = s, l = -1;
-    while (u1 != MAX_V){
-        ancs.push_back(u1);
-        u1 = T[u1].parent;
-    }
-    u1 = t;
-    while (u1 != MAX_V){
-        anct.push_back(u1);
-        u1 = T[u1].parent;
-    }
-    int i = ancs.size() - 1, j = anct.size() - 1, k = -1;
-    unordered_map<int, int> inds, indt;
-    while (i != -1 && j != -1){
-        if (ancs[i] == anct[j]){
-            inds[ancs[i]] = i;
-            indt[anct[j]] = j;
-            i--, j--, k++;
-        }
-        else
-            break;
-    }
-    if(i==-1)
-        l = ancs[0];
-    else if(j==-1)
-        l = anct[0];
-    else
-        l = ancs[i + 1];
-    int ind;
-    if (l == s){
-        optw = PL2[t][ancs.size() - 1].first;
-    }
-    else if (l == t){
-        optw = PL1[s][anct.size() - 1].first;
-    }
-    else{
-        int cs = ancs[i], ct = anct[j];
-        l = (ancarray[cs].size() < ancarray[ct].size()) ? cs : ct;
-        hopsize += ancarray[l].size() - 1;
-        //printf("%d %d", mtc, indH);
-        for (int i = 0; i + 1 < ancarray[l].size(); i++)
-        {
-            ind = ancarray[l][i];
-            UID P1 = PL1[s][ind].second, P2 = PL2[t][ind].second;
-            UID::iterator it1, it2;
-            for (it1 = P1.begin(); it1 != P1.end(); it1++){
-                int q = it1->first;
-                if(P2.count(q)){
-                    optw = min(optw, it1->second + P2[q]);
-                }
-            }
-        }
-    }
-    //printf("%f\n", optw);
-    if(optw==DBL_MAX)
-        optw = -1;
-    return optw;
-}
-
 long long pruneHoplinks, totlca, prunepc, totpc;
 double PCSPQueryIPrune(int s, int t){
     optw = DBL_MAX;
@@ -740,13 +597,13 @@ double PCSPQueryIPrune(int s, int t){
     else
         l = ancs[i + 1];
     int ind;
-    if (l == s){
+    if (l == s){//X(s) is an ancestor of X(t)
         optw = PL2[t][ancs.size() - 1].first;
     }
-    else if (l == t){
+    else if (l == t){//X(t) is an ancestor of X(s)
         optw = PL1[s][anct.size() - 1].first;
     }
-    else{
+    else{//find the LCA and cs and ct
         int cs = ancs[i], ct = anct[j];
         l = (ancarray[cs].size() < ancarray[ct].size()) ? cs : ct;
         if(ancarray[cs].size()==ancarray[ct].size())
@@ -756,11 +613,12 @@ double PCSPQueryIPrune(int s, int t){
         totlca++;
         #endif
         //printf("-%d %d %d-\n", l + 1, s+1, map2sep[l]);
-        for (int i = 0; i + 1 < ancarray[l].size(); i++)
+        for (int i = 0; i + 1 < ancarray[l].size(); i++)//iterate over each hoplink
         {
             ind = ancarray[l][i];
             totpc += PL1[s][ind].second.size();
             if(map2sep[l]!=-1&&flagHs[map2sep[l]][s].size()!=0&&flagHs[map2sep[l]][s][i]==1){
+				//judge whether to use the pruning
                 //printf("Prune %d %d %d %d\n", s+1, t+1, l+1, L1[s][ind].first+1);
                 #ifdef showstat
                 pruneHoplinks++;
@@ -820,6 +678,7 @@ int main(int argc , char * argv[]){
     int u, v, cat2;
     double w;
     char cat1;
+	
     //read graph
     for (int i = 0; i < 4; i++)
         fgets(buffer, 90, fp_network);
@@ -842,6 +701,7 @@ int main(int argc , char * argv[]){
             alledges.push_back(edge(u, v, w, l));
         }
     }
+	//regular expression to minimized DFA
     Reg2minDFA(regL);
     cout << endl;
     std::chrono::high_resolution_clock::time_point t1, t2;
@@ -924,7 +784,7 @@ int main(int argc , char * argv[]){
 
     cout << endl;
     int K = atoi(srandom.c_str());
-    if (K > 0){
+    if (K > 0){//Separator Pruning
         cout << "Pruning... " << endl;
         t1 = std::chrono::high_resolution_clock::now();
         preprocessPrunedSep(K);
@@ -949,7 +809,7 @@ int main(int argc , char * argv[]){
 
     cout << endl << "Querying... " << endl;
     
-    for (int qi = 0; qi < 1; qi++){
+    for (int qi = 0; qi < 1; qi++){//test a queryset
         vector<II> queryset;
         vector<double> ans;
         string s3 = string("../data/") + sfile + string("/") + string("q") + to_string(qi + 1);
