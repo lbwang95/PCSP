@@ -1,5 +1,7 @@
 # PCSP: Efficiently Answering Label-Constrained Shortest Path Queries on Road Networks
 
+This repository contains the code and data for this manuscript.
+
 ### Environment
 
 g++ version: 9.4.0 
