@@ -11,7 +11,7 @@ typedef unordered_map<int, UID> UIID; //mapping state q q' to distance for P_vw 
 typedef pair<double, UID> DUID;// for P_vw^1 and P_wv^2 mapping state q to distance
 typedef pair<int, UIID> IV;
 typedef long long ll;
-const int MAX_V = 1070386;
+const int MAX_V = 1070406;
 int N, M;//# of vertices and edges
 long long hopsize, npathConcat;//# of hoplinks and path concatenations
 double optw = DBL_MAX;//optimal answer
