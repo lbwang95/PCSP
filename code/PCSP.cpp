@@ -14,7 +14,7 @@ typedef struct uiid{
     }
 }UIID;//mapping state q q' to distance for P_vw and P_wv
 typedef pair<int, UIID> IV;
-const int MAX_V = 6262106; // 3598633;
+const int MAX_V = 6262106;// 3598633;
 int N, M;//# of vertices and edges
 long long hopsize, npathConcat;//# of hoplinks and path concatenations
 int optw = INF;//optimal answer
