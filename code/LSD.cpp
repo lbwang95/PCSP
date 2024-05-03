@@ -7,7 +7,7 @@ typedef pair<int, int> II;
 typedef unordered_map<settype, double> USD;//from label sets to distances
 typedef pair<settype, double> SD;
 typedef pair<int, vector<SD>> IV;
-const int MAX_V = 1070406;
+const int MAX_V = 6262106;
 int N, M;//# of vertices and edges
 long long hopsize, npathConcat;//# of path concatenations
 double optw = DBL_MAX;//optimal answer
