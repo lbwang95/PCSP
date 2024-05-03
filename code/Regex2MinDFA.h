@@ -1,6 +1,7 @@
 #include<bits/stdc++.h>
 #define MAX_NS 128
 #define MAX_S 32
+#define MAX_es 1
 using namespace std;
 typedef set<int> IntSet;
 typedef set<char> CharSet;

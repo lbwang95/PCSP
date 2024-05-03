@@ -4,18 +4,22 @@
 using namespace std;
 #define eps 1e-8
 #define showstat
+#define INF 0x3f3f3f3f
 typedef pair<double, int> DI;
 typedef pair<int, int> II;
-typedef unordered_map<int, double> UID;
-typedef unordered_map<int, UID> UIID; //mapping state q q' to distance for P_vw and P_wv
-typedef pair<double, UID> DUID;// for P_vw^1 and P_wv^2 mapping state q to distance
+typedef struct uiid{
+    int z[MAX_es][MAX_es];
+    uiid(){
+        memset(z, INF, sizeof(z));
+    }
+}UIID;//mapping state q q' to distance for P_vw and P_wv
 typedef pair<int, UIID> IV;
-typedef long long ll;
-const int MAX_V = 1070406;
+const int MAX_V = 6262106; // 3598633;
 int N, M;//# of vertices and edges
 long long hopsize, npathConcat;//# of hoplinks and path concatenations
-double optw = DBL_MAX;//optimal answer
-int treeheight = 0, treewidth = 0, treeavgheight = 0;
+int optw = INF;//optimal answer
+int treeheight = 0, treewidth = 0;
+double treeavgheight = 0;
 
 typedef struct node{
     int level;//not used
@@ -26,13 +30,15 @@ typedef struct node{
 };
 node T[MAX_V];
 vector<IV> L1[MAX_V], L2[MAX_V];//supersets //mapping state q q' to distance for P_vw and P_wv
-vector<DUID> PL1[MAX_V], PL2[MAX_V];//index for P_vw^1 and P_wv^2 mapping state q to distance
-vector<int> anc[MAX_V];
+vector<int> L1maxw[MAX_V], L2maxw[MAX_V];
 int root = -1;
 unordered_map<int, UIID> adj[MAX_V];//contains only edges to higher rank
 unordered_map<int,int> adjo[MAX_V], adjT[MAX_V];//contains all the edges
-UIID char2mat[27];//from an edge label to all transitions
+typedef unordered_map<int, int> HID;
+typedef unordered_map<int, HID> HIID;
+HIID char2mat[27];//from an edge label to all transitions
 DFA minDfa;
+int DFAq0 = 0;
 void Reg2minDFA(string str1){
 	//string str = "(a|b)*abb";
 	//string str = "(a|b)*c|z*";
@@ -86,17 +92,6 @@ void Reg2minDFA(string str1){
     string teststr = "bbbpppppp";
     printf("%s: %d DFA states\n", oristr.c_str(), minDfaStateNum);
     printf("%s test:%d\n", teststr.c_str(), indicator(minDfa, teststr));
-}
-
-void printUIID(UIID a){
-    UIID::iterator it;
-    for (it = a.begin(); it != a.end();it++){
-        UID::iterator iit;
-        for (iit = it->second.begin(); iit != it->second.end();iit++){
-            printf("(%d %d %f)", it->first, iit->first, iit->second);
-        }
-    }
-    cout << endl;
 }
 
 vector<int> order;
@@ -164,24 +159,12 @@ void genorder(string filename, bool writeflag){
 
 void PCSPJoin(UIID &P1, UIID &P2, UIID &res){
     //return the res contains the paths of joining P1 and P2
-    if(P1.size()==0 || P2.size()==0)
-        return;
-    UIID::iterator it1, it2;
-    UID::iterator iit1, iit2;
-    for (it1 = P1.begin(); it1 != P1.end(); it1++){
-        int q1 = it1->first;
-        for (iit1 = it1->second.begin(); iit1 != it1->second.end(); iit1++){
-            int q1_ = iit1->first;
-            if(P2.count(q1_)){
-                for (iit2 = P2[q1_].begin(); iit2 != P2[q1_].end(); iit2++){
-                    int q2_ = iit2->first;
-                    double dis = iit1->second + iit2->second;
-                    if(res.count(q1) && res[q1].count(q2_)){
-                        if(dis<res[q1][q2_])
-                            res[q1][q2_] = dis;
-                    }
-                    else{
-                        res[q1][q2_] = dis;
+    for (int q1 = 0; q1 < MAX_es; q1++){
+        for (int q1_ = 0; q1_<MAX_es; q1_++){
+            if(P1.z[q1][q1_]!=INF){
+                for (int q2_=0; q2_<MAX_es; q2_++){
+                    if(P2.z[q1_][q2_]!=INF){
+                        res.z[q1][q2_] = min(res.z[q1][q2_], P1.z[q1][q1_] + P2.z[q1_][q2_]);
                     }
                 }
             }            
@@ -238,6 +221,10 @@ void treedec(){
         descnt[v]++;
         descnt[T[v].parent] += descnt[v];
     }
+    for (int i = 0; i < N;i++){
+        adjo[i].clear();
+        adjT[i].clear();
+    }
 }
 
 queue<int> bfs, bfssave;
@@ -252,7 +239,7 @@ void generateLabel4v(int v){
         u1 = T[u1].parent;
     }
     int lenanc = anc.size();
-    treeavgheight += lenanc;
+    treeavgheight += (double)lenanc;
     treeheight = max(treeheight, lenanc + 1);
     for (int i = 0; i < lenanc;i++){
         int u = anc[anc.size() - 1 - i];
@@ -289,7 +276,6 @@ void generateLabel4v(int v){
     //cout << L[v].size() << endl;
 }
 double maxlabelsize, avglabelsize;
-vector<double> uncons1[MAX_V], uncons2[MAX_V];
 void labeling(){
     //label in a top-down manner
     bfs.push(root);
@@ -306,46 +292,40 @@ void labeling(){
             printf("%d %d\n", iter, treeheight);
         iter += 1;
     }
-	//extract the two sets from supersets
+    printf("Extract Two Sets\n");
+    //extract the two sets from supersets
     for (int i = 0; i <= N; i++){
         for (int j = 0; j < L1[i].size();j++){
-            UID tmp;
-            uncons1[i].push_back(DBL_MAX);
-            if(L1[i][j].second.count(minDfa.startState)){//only consider initial state
-                double maxw = DBL_MAX;
-                UID::iterator it;
-                for (it = L1[i][j].second[minDfa.startState].begin(); it != L1[i][j].second[minDfa.startState].end();it++){
-                    if(finalFlag[it->first])
-                        maxw = min(maxw, it->second);
-                    uncons1[i][j] = min(maxw, uncons1[i][j]);
+            double PL1labelsize = 0;
+            int maxw = INF;
+            for (int q_ = 0; q_ < MAX_es; q_++){
+                if(finalFlag[q_]){
+                    int d1 = L1[i][j].second.z[DFAq0][q_];
+                    if(d1!=INF){
+                        maxw = min(maxw, d1);
+                        PL1labelsize++;
+                    }
                 }
-                PL1[i].push_back(DUID(maxw, L1[i][j].second[minDfa.startState]));
             }
-            else
-                PL1[i].push_back(DUID(DBL_MAX, tmp));
-            maxlabelsize = max(maxlabelsize, (double)PL1[i][j].second.size());
-            avglabelsize += (double)PL1[i][j].second.size() / 2;
+            L1maxw[i].push_back(maxw);
+            maxlabelsize = max(maxlabelsize, (double)PL1labelsize);
+            avglabelsize += PL1labelsize / 2;
         }
         for (int j = 0; j < L2[i].size();j++){
-            UID tmpP;
-            UIID::iterator it;
-            uncons2[i].push_back(DBL_MAX);
-            double dis = DBL_MAX;
-            for (it = L2[i][j].second.begin(); it != L2[i][j].second.end();it++){
-                UID::iterator iit;
-                double maxw = DBL_MAX;
-                for (iit = it->second.begin(); iit != it->second.end();iit++){
-                    if(finalFlag[iit->first])//only consider final states
-                        maxw = min(maxw, iit->second);
+            double PL2labelsize = 0;
+            int maxw = INF;
+            for (int q_ = 0; q_ < MAX_es; q_++){
+                if(finalFlag[q_]){
+                    int d1 = L2[i][j].second.z[DFAq0][q_];
+                    if(d1!=INF){
+                        maxw = min(maxw, d1);
+                        PL2labelsize++;
+                    }
                 }
-                tmpP[it->first] = maxw;
-                uncons2[i][j] = min(uncons2[i][j], maxw);
-                if (it->first == minDfa.startState)
-                    dis = maxw;
             }
-            PL2[i].push_back(DUID(dis, tmpP));
-            maxlabelsize = max(maxlabelsize, (double)PL2[i][j].second.size());
-            avglabelsize += (double)PL2[i][j].second.size() / 2;
+            L2maxw[i].push_back(maxw);
+            maxlabelsize = max(maxlabelsize, (double)PL2labelsize);
+            avglabelsize += PL2labelsize / 2;
         }
     }
 }
@@ -371,39 +351,41 @@ void sepPrune(int top, int i4H){
         for (int i = 0; i + 1 < ancarray[top].size(); i++){
             int indh = ancarray[top][i];
             int h = L1[top][indh].first;
-            UID::iterator it;
             bool pruneflagh = true;
-            for (it = PL1[v][indh].second.begin(); it != PL1[v][indh].second.end(); it++){
-                int q = it->first;
-                double dis = it->second;
-                bool conditionflagq = false;
-                for (int j = 0; j + 1 < ancarray[top].size(); j++)
-                {
-                    if (j == i)
-                        continue;
-                    int indh_ = ancarray[top][j];
-                    if(flagHs[i4H][v][j])
-                        continue;
-                    int h_ = L1[top][indh_].first;
-                    UIID res;
-                    if(T[h_].ran<T[h].ran)
-                        PCSPJoin(L1[v][indh_].second, L1[h_][indh].second, res);
-                    else
-                        PCSPJoin(L1[v][indh_].second, L2[h][indh_].second, res);
-                    if(res.count(minDfa.startState)&&res[minDfa.startState].count(q)){
-                        if(abs(res[minDfa.startState][q]-dis)<eps){
-                            conditionflagq = true;
-                            break;
+            bool forpruneflag = false;
+            for (int q = 0; q < MAX_es; q++){
+                int dis = L1[v][indh].second.z[DFAq0][q];
+                if(dis!=INF){
+                    bool conditionflagq = false;
+                    forpruneflag = true;
+                    for (int j = 0; j + 1 < ancarray[top].size(); j++)
+                    {
+                        if (j == i)
+                            continue;
+                        int indh_ = ancarray[top][j];
+                        if(flagHs[i4H][v][j])
+                            continue;
+                        int h_ = L1[top][indh_].first;
+                        UIID res;
+                        if(T[h_].ran<T[h].ran)
+                            PCSPJoin(L1[v][indh_].second, L1[h_][indh].second, res);
+                        else
+                            PCSPJoin(L1[v][indh_].second, L2[h][indh_].second, res);
+                        if(res.z[DFAq0][q]!=INF){
+                            if(abs(res.z[DFAq0][q]-dis)<eps){
+                                conditionflagq = true;
+                                break;
+                            }
                         }
                     }
-                }
-                //printf("prune %d %d %d %d %f %d\n", top + 1, v + 1, h + 1, q, dis, conditionflagq);
-                if (conditionflagq == false){
-                    pruneflagh = false;
-                    break;
+                    //printf("prune %d %d %d %d %f %d\n", top + 1, v + 1, h + 1, q, dis, conditionflagq);
+                    if (conditionflagq == false){
+                        pruneflagh = false;
+                        break;
+                    }
                 }
             }
-            if(PL1[v][indh].second.size()==0)
+            if(forpruneflag==false)
                 pruneflagh = false;
             flagHs[i4H][v][i] = pruneflagh;
             //printf("------%d %d %d %d---------\n", top + 1, v + 1, h + 1, pruneflagh);
@@ -419,9 +401,9 @@ void sepPrune(int top, int i4H){
     }*/
 }
 
-int freq[MAX_V];
-vector<II> sortH;
-void preprocessPrunedSep(int K){
+int freq[MAX_V], K;
+vector<DI> sortH;
+void preprocessPrunedSep(double alpha){
     memset(map2sep, -1, sizeof(map2sep));
     int tothit = 0;
     default_random_engine gen(time(NULL));
@@ -470,18 +452,22 @@ void preprocessPrunedSep(int K){
     }
     for (int i = 0; i <= N;i++){
         if (freq[i] != 0){
-            sortH.push_back(II(freq[i], i));
+            sortH.push_back(DI((double)freq[i]/(double)tothit, i));
         }
     }
     sort(sortH.begin(), sortH.end());
     double sum = 0;
+    K = 0;
     for (int i = sortH.size() - 1; i >= 0; i--){
         sum += sortH[i].first;
-        //printf("Top%d Freq %d %f %d\n", sortH.size() - i, sortH[i].first, sum / tothit, sortH[i].second + 1);
-        if (i + 21 < sortH.size())
+        K++;
+        //printf("Top%d Freq %f %f %d\n", sortH.size() - i, sortH[i].first, sum, sortH[i].second + 1);
+        if (sum>alpha)
             break;
     }
-    for (int i = 0; i < min(K, (int)sortH.size()); i++){
+    printf("Top%d sum%f\n", K, sum);
+    K = min(K, 20);
+    for (int i = 0; i < K; i++){
         sepPrune(sortH[sortH.size() - 1 - i].second, i);
     }
 }
@@ -498,7 +484,7 @@ void save(string filename){
         int v = bfssave.front();
         bfssave.pop();
         //printf("%d\n", v);
-        int lenl1 = PL1[v].size(), lenl2 = PL2[v].size(), nx = T[v].X.size();
+        int lenl1 = L1[v].size(), lenl2 = L2[v].size(), nx = T[v].X.size();
         indexsize += 5 + nx;
         //fprintf(fp_index, "%d %d %d %d%c", v, T[v].parent, nx, lenl,' ');
         of.write(reinterpret_cast<const char *>(&v), sizeof(int));
@@ -511,33 +497,29 @@ void save(string filename){
             of.write(reinterpret_cast<const char *>(&T[v].X[i]), sizeof(int));
         }
         for (int i = 0; i < lenl1; i++){
-            int lend = PL1[v][i].second.size(), tmp = PL1[v][i].first * 100;
+            int lend = MAX_es, tmp = (L1maxw[v][i]==INF)?-1:L1maxw[v][i];
             indexsize += 3 + lend;
             //fprintf(fp_index, "%d %d ", L[v][i].first, lend);
             of.write(reinterpret_cast<const char *>(&tmp), sizeof(int));
             of.write(reinterpret_cast<const char *>(&lend), sizeof(int));
-            UID::iterator it1;
-            UID P1 = PL1[v][i].second;
             int flag = 0;
-            for (it1 = P1.begin(); it1 != P1.end(); it1++){
-                int q1 = it1->first, tmpi = it1->second * 100;
-                flag = flag | (1 << q1);
+            for (int q = 0; q < MAX_es;q++){
+                int tmpi = (L1[v][i].second.z[DFAq0][q]==INF)?-1:L1[v][i].second.z[DFAq0][q];
+                flag = flag | (1 << q);
                 of.write(reinterpret_cast<const char *>(&tmpi), sizeof(int));
             }
             of.write(reinterpret_cast<const char *>(&flag), sizeof(int));
         }
         for (int i = 0; i < lenl2; i++){
-            int lend = PL2[v][i].second.size(), tmp = PL2[v][i].first * 100;
+            int lend = MAX_es, tmp = (L2maxw[v][i]==INF)?-1: L2maxw[v][i];
             indexsize += 3 + lend;
             //fprintf(fp_index, "%d %d ", L[v][i].first, lend);
             of.write(reinterpret_cast<const char *>(&tmp), sizeof(int));
             of.write(reinterpret_cast<const char *>(&lend), sizeof(int));
-            UID::iterator it1;
-            UID P2 = PL2[v][i].second;
             int flag = 0;
-            for (it1 = P2.begin(); it1 != P2.end(); it1++){
-                int q1 = it1->first, tmpi = it1->second * 100;
-                flag = flag | (1 << q1);
+            for (int q = 0; q < MAX_es;q++){
+                int tmpi = (L2[v][i].second.z[DFAq0][q]==INF)?-1:L2[v][i].second.z[DFAq0][q];
+                flag = flag | (1 << q);
                 of.write(reinterpret_cast<const char *>(&tmpi), sizeof(int));
             }
             of.write(reinterpret_cast<const char *>(&flag), sizeof(int));
@@ -548,7 +530,7 @@ void save(string filename){
             bfssave.push(T[v].children[i]);
         }
     }
-    for (int i4H = 0; i4H < 30; i4H++){
+    for (int i4H = 0; i4H < K; i4H++){
         for (int i = 0; i <= N; i++)
         {
             pindexsize += (long long)flagHs[i4H][i].size();
@@ -563,8 +545,8 @@ void save(string filename){
 }
 
 long long pruneHoplinks, totlca, prunepc, totpc;
-double PCSPQueryIPrune(int s, int t){
-    optw = DBL_MAX;
+int PCSPQueryIPrune(int s, int t){
+    optw = INF;
     if (s == t)
         return 0;
     s--, t--;
@@ -598,10 +580,10 @@ double PCSPQueryIPrune(int s, int t){
         l = ancs[i + 1];
     int ind;
     if (l == s){//X(s) is an ancestor of X(t)
-        optw = PL2[t][ancs.size() - 1].first;
+        optw = L2maxw[t][ancs.size() - 1];
     }
     else if (l == t){//X(t) is an ancestor of X(s)
-        optw = PL1[s][anct.size() - 1].first;
+        optw = L1maxw[s][anct.size() - 1];
     }
     else{//find the LCA and cs and ct
         int cs = ancs[i], ct = anct[j];
@@ -616,37 +598,42 @@ double PCSPQueryIPrune(int s, int t){
         for (int i = 0; i + 1 < ancarray[l].size(); i++)//iterate over each hoplink
         {
             ind = ancarray[l][i];
-            totpc += PL1[s][ind].second.size();
             if(map2sep[l]!=-1&&flagHs[map2sep[l]][s].size()!=0&&flagHs[map2sep[l]][s][i]==1){
-				//judge whether to use the pruning
+                //judge whether to use the pruning
                 //printf("Prune %d %d %d %d\n", s+1, t+1, l+1, L1[s][ind].first+1);
                 #ifdef showstat
                 pruneHoplinks++;
-                prunepc += PL1[s][ind].second.size();
+                prunepc += MAX_es;
                 #endif
                 continue;
             }
-            UID P1 = PL1[s][ind].second, P2 = PL2[t][ind].second;
-            UID::iterator it1, it2;
-            for (it1 = P1.begin(); it1 != P1.end(); it1++){
-                int q = it1->first;
-                if(P2.count(q)){
-                    optw = min(optw, it1->second + P2[q]);
+            for (int q = 0;q<MAX_es;q++){
+                int d1 = L1[s][ind].second.z[DFAq0][q];
+                if(d1!=INF){
+                    for (int q_ = 0;q_<MAX_es;q_++){
+                        if(finalFlag[q_]){
+                            int d2 = L2[t][ind].second.z[q][q_];
+                            if(d2!=INF){
+                                optw = min(optw, d1 + d2);
+                                totpc++;
+                            }
+                        }
+                    }
                 }
             }
         }
     }
     //printf("%f\n", optw);
-    if(optw==DBL_MAX)
+    if(optw==INF)
         optw = -1;
     return optw;
 }
 
 struct edge{
     int from, to;
-    double weight;
+    int weight;
     char label;
-    edge(int a,int b,double w,char l){
+    edge(int a,int b,int w,char l){
         from = a, to = b, weight = w, label = l;
     }
 };
@@ -670,7 +657,7 @@ int main(int argc , char * argv[]){
     if (argc > 4)
         srandom = string(argv[4]);
     else
-        srandom = string("10");
+        srandom = string("0.94");
     string prefix = string("../data/") + sfile + string("/");
     string graphfile = prefix + string("USA-road-l.") + sfile + (".gr");
     fp_network = fopen(graphfile.c_str(), "r");
@@ -694,16 +681,17 @@ int main(int argc , char * argv[]){
         v--;
         cat2 = (cat2 > 5) ? 5 : cat2;
         char l = (cat1 - 'A') * 5 + cat2 - 1 + 'a';
-        //printf("%d %d %c%d %c\n", u, v, cat1, cat2, l);
+        //printf("%d %d %d %c%d %c\n", u, v, (int)(w), cat1, cat2, l);
         if (i % 2 == 0){
             adjo[u][v]=1;
             adjo[v][u]=1;
-            alledges.push_back(edge(u, v, w, l));
+            alledges.push_back(edge(u, v, (int)(w*100), l));
         }
     }
 	//regular expression to minimized DFA
     Reg2minDFA(regL);
     cout << endl;
+    DFAq0 = minDfa.startState;
     std::chrono::high_resolution_clock::time_point t1, t2;
 	std::chrono::duration<double> time_span;
 	double runT;
@@ -741,16 +729,17 @@ int main(int argc , char * argv[]){
     for (int i = 0; i < alledges.size(); i++)
     {
         int f = alledges[i].from, t = alledges[i].to;
-        double w = alledges[i].weight;
+        int w = alledges[i].weight;
         if(T[f].ran>T[t].ran)
             swap(f, t);
         adjT[f][t] = 1;
-        adj[f][t] = char2mat[alledges[i].label-'a'];
-        UIID::iterator it;
-        for (it = adj[f][t].begin(); it != adj[f][t].end();it++){
-            UID::iterator iit;
-            for (iit = it->second.begin(); iit != it->second.end(); iit++)
-                iit->second = w;
+        HIID tmp = char2mat[alledges[i].label-'a'];
+        HIID::iterator it;
+        for (it = tmp.begin(); it != tmp.end();it++){
+            HID::iterator iit;
+            for (iit = it->second.begin(); iit != it->second.end(); iit++){
+                adj[f][t].z[it->first][iit->first] = w;
+            }
         }
         adj[t][f] = adj[f][t];
     }
@@ -772,22 +761,22 @@ int main(int argc , char * argv[]){
 	runT= time_span.count();
 	cout<<"Labeling Time "<<runT<<endl;
     cout<<"Tree Height "<<treeheight<<endl;
-    cout<<"Tree Avg. Height "<<(double)treeavgheight/N<<endl;
+    cout<<"Tree Avg. Height "<<treeavgheight/N<<endl;
     cout << "Max. Label Size " << maxlabelsize << endl;
     cout << "Avg. Label Size " << avglabelsize / treeavgheight << endl;
     setres += string("Labeling Time ") + to_string(runT) + string("\n");
     setres += string("Tree Width ") + to_string(treewidth) + string("\n");    
     setres += string("Tree Height ") + to_string(treeheight) + string("\n");   
-    setres += string("Tree Avg. Height ") + to_string((double)treeavgheight/N) + string("\n");
+    setres += string("Tree Avg. Height ") + to_string(treeavgheight/N) + string("\n");
     setres += string("Max. Label Size ") + to_string(maxlabelsize) + string("\n");
     setres += string("Avg. Label Size ") + to_string(avglabelsize / treeavgheight) + string("\n");
 
     cout << endl;
-    int K = atoi(srandom.c_str());
-    if (K > 0){//Separator Pruning
+    double alpha = stof(srandom.c_str());
+    if (argc > 4 && alpha > 0){//Separator Pruning
         cout << "Pruning... " << endl;
         t1 = std::chrono::high_resolution_clock::now();
-        preprocessPrunedSep(K);
+        preprocessPrunedSep(alpha);
         t2=std::chrono::high_resolution_clock::now();
         time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2-t1);
         runT= time_span.count();
@@ -808,10 +797,10 @@ int main(int argc , char * argv[]){
     setres += string("Pruning Index Size ") + to_string((double)pindexsize * 4 / 1000000) + string("MB\n");
 
     cout << endl << "Querying... " << endl;
-    
+
     for (int qi = 0; qi < 1; qi++){//test a queryset
         vector<II> queryset;
-        vector<double> ans;
+        vector<int> ans;
         string s3 = string("../data/") + sfile + string("/") + string("q") + to_string(qi + 1);
         fp_query = fopen(s3.c_str(), "r");
         int qs, qt;
@@ -830,7 +819,7 @@ int main(int argc , char * argv[]){
     }
     for (int qi = 0; qi < 10; qi++){
         vector<II> queryset;
-        vector<double> ans;
+        vector<int> ans;
         pruneHoplinks = hopsize = prunepc = totlca = totpc = 0;
         string s3 = string("../data/") + sfile + string("/") + string("q") + to_string(qi + 1);
         fp_query = fopen(s3.c_str(), "r");
