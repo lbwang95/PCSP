@@ -13,7 +13,7 @@ typedef pair<double, UID> DUID;
 typedef pair<double, II> DII;
 typedef pair<int, UIID> IV;
 typedef long long ll;
-const int MAX_V = 1070406;
+const int MAX_V = 6262106;
 int N, M;//# of vertices and edges
 double optw = DBL_MAX;//optimal answer
 
