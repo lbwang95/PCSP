@@ -850,7 +850,7 @@ int main(int argc , char * argv[]){
 
         FILE *fp_out = fopen((prefix + sfile + string("q") + to_string(qi + 1) + string("PCSPResults")).c_str(), "w");
         for (int i = 0; i < ans.size(); i++)
-            fprintf(fp_out, "%f\n", ans[i]);
+            fprintf(fp_out, "%d\n", ans[i]);
         fclose(fp_out);
         setres += string("\n");
     }
