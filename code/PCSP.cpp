@@ -4,20 +4,22 @@
 using namespace std;
 #define eps 1e-8
 #define showstat
-#define INF 0x3f3f3f3f
 typedef pair<double, int> DI;
 typedef pair<int, int> II;
 typedef struct uiid{
-    int z[MAX_es][MAX_es];
+    double z[MAX_es][MAX_es];
     uiid(){
-        memset(z, INF, sizeof(z));
+		for(int i=0;i<MAX_es;i++)
+			for(int j=0;j<MAX_es;j++)
+				z[i][j]=DBL_MAX;
     }
 }UIID;//mapping state q q' to distance for P_vw and P_wv
 typedef pair<int, UIID> IV;
-const int MAX_V = 6262106; // 3598633;
+typedef long long ll;
+const int MAX_V = 3598633; // 3598633;
 int N, M;//# of vertices and edges
 long long hopsize, npathConcat;//# of hoplinks and path concatenations
-int optw = INF;//optimal answer
+double optw = DBL_MAX;//optimal answer
 int treeheight = 0, treewidth = 0;
 double treeavgheight = 0;
 
@@ -30,7 +32,7 @@ typedef struct node{
 };
 node T[MAX_V];
 vector<IV> L1[MAX_V], L2[MAX_V];//supersets //mapping state q q' to distance for P_vw and P_wv
-vector<int> L1maxw[MAX_V], L2maxw[MAX_V];
+vector<double> L1maxw[MAX_V], L2maxw[MAX_V];
 int root = -1;
 unordered_map<int, UIID> adj[MAX_V];//contains only edges to higher rank
 unordered_map<int,int> adjo[MAX_V], adjT[MAX_V];//contains all the edges
@@ -161,9 +163,9 @@ void PCSPJoin(UIID &P1, UIID &P2, UIID &res){
     //return the res contains the paths of joining P1 and P2
     for (int q1 = 0; q1 < MAX_es; q1++){
         for (int q1_ = 0; q1_<MAX_es; q1_++){
-            if(P1.z[q1][q1_]!=INF){
+            if(P1.z[q1][q1_]!=DBL_MAX){
                 for (int q2_=0; q2_<MAX_es; q2_++){
-                    if(P2.z[q1_][q2_]!=INF){
+                    if(P2.z[q1_][q2_]!=DBL_MAX){
                         res.z[q1][q2_] = min(res.z[q1][q2_], P1.z[q1][q1_] + P2.z[q1_][q2_]);
                     }
                 }
@@ -221,7 +223,7 @@ void treedec(){
         descnt[v]++;
         descnt[T[v].parent] += descnt[v];
     }
-    for (int i = 0; i < N;i++){
+	for (int i = 0; i < N;i++){
         adjo[i].clear();
         adjT[i].clear();
     }
@@ -292,19 +294,18 @@ void labeling(){
             printf("%d %d\n", iter, treeheight);
         iter += 1;
     }
-    printf("Extract Two Sets\n");
-    //extract the two sets from supersets
+	//extract the two sets from supersets
     for (int i = 0; i <= N; i++){
         for (int j = 0; j < L1[i].size();j++){
             double PL1labelsize = 0;
-            int maxw = INF;
+            double maxw = DBL_MAX;
             for (int q_ = 0; q_ < MAX_es; q_++){
                 if(finalFlag[q_]){
-                    int d1 = L1[i][j].second.z[DFAq0][q_];
-                    if(d1!=INF){
-                        maxw = min(maxw, d1);
+					double d1 = L1[i][j].second.z[DFAq0][q_];
+					if(d1!=DBL_MAX){
+						maxw = min(maxw, d1);
                         PL1labelsize++;
-                    }
+					}
                 }
             }
             L1maxw[i].push_back(maxw);
@@ -313,14 +314,14 @@ void labeling(){
         }
         for (int j = 0; j < L2[i].size();j++){
             double PL2labelsize = 0;
-            int maxw = INF;
+            double maxw = DBL_MAX;
             for (int q_ = 0; q_ < MAX_es; q_++){
                 if(finalFlag[q_]){
-                    int d1 = L2[i][j].second.z[DFAq0][q_];
-                    if(d1!=INF){
-                        maxw = min(maxw, d1);
-                        PL2labelsize++;
-                    }
+					double d1 = L2[i][j].second.z[DFAq0][q_];
+					if(d1!=DBL_MAX){
+						maxw = min(maxw, d1);				 
+						PL2labelsize++;
+					}
                 }
             }
             L2maxw[i].push_back(maxw);
@@ -354,8 +355,8 @@ void sepPrune(int top, int i4H){
             bool pruneflagh = true;
             bool forpruneflag = false;
             for (int q = 0; q < MAX_es; q++){
-                int dis = L1[v][indh].second.z[DFAq0][q];
-                if(dis!=INF){
+                double dis = L1[v][indh].second.z[DFAq0][q];
+                if(dis!=DBL_MAX){
                     bool conditionflagq = false;
                     forpruneflag = true;
                     for (int j = 0; j + 1 < ancarray[top].size(); j++)
@@ -371,7 +372,7 @@ void sepPrune(int top, int i4H){
                             PCSPJoin(L1[v][indh_].second, L1[h_][indh].second, res);
                         else
                             PCSPJoin(L1[v][indh_].second, L2[h][indh_].second, res);
-                        if(res.z[DFAq0][q]!=INF){
+                        if(res.z[DFAq0][q]!=DBL_MAX){
                             if(abs(res.z[DFAq0][q]-dis)<eps){
                                 conditionflagq = true;
                                 break;
@@ -497,28 +498,28 @@ void save(string filename){
             of.write(reinterpret_cast<const char *>(&T[v].X[i]), sizeof(int));
         }
         for (int i = 0; i < lenl1; i++){
-            int lend = MAX_es, tmp = (L1maxw[v][i]==INF)?-1:L1maxw[v][i];
+            int lend = MAX_es, tmp = (L1maxw[v][i]==DBL_MAX)?-1:L1maxw[v][i] * 100;
             indexsize += 3 + lend;
             //fprintf(fp_index, "%d %d ", L[v][i].first, lend);
             of.write(reinterpret_cast<const char *>(&tmp), sizeof(int));
             of.write(reinterpret_cast<const char *>(&lend), sizeof(int));
             int flag = 0;
             for (int q = 0; q < MAX_es;q++){
-                int tmpi = (L1[v][i].second.z[DFAq0][q]==INF)?-1:L1[v][i].second.z[DFAq0][q];
+                int tmpi = (L1[v][i].second.z[DFAq0][q]==DBL_MAX)?-1:L1[v][i].second.z[DFAq0][q]*100;
                 flag = flag | (1 << q);
                 of.write(reinterpret_cast<const char *>(&tmpi), sizeof(int));
             }
             of.write(reinterpret_cast<const char *>(&flag), sizeof(int));
         }
         for (int i = 0; i < lenl2; i++){
-            int lend = MAX_es, tmp = (L2maxw[v][i]==INF)?-1: L2maxw[v][i];
+            int lend = MAX_es, tmp = (L2maxw[v][i]==DBL_MAX)?-1: L2maxw[v][i]* 100;
             indexsize += 3 + lend;
             //fprintf(fp_index, "%d %d ", L[v][i].first, lend);
             of.write(reinterpret_cast<const char *>(&tmp), sizeof(int));
             of.write(reinterpret_cast<const char *>(&lend), sizeof(int));
             int flag = 0;
             for (int q = 0; q < MAX_es;q++){
-                int tmpi = (L2[v][i].second.z[DFAq0][q]==INF)?-1:L2[v][i].second.z[DFAq0][q];
+                int tmpi = (L2[v][i].second.z[DFAq0][q]==DBL_MAX)?-1:L2[v][i].second.z[DFAq0][q]*100;
                 flag = flag | (1 << q);
                 of.write(reinterpret_cast<const char *>(&tmpi), sizeof(int));
             }
@@ -545,8 +546,8 @@ void save(string filename){
 }
 
 long long pruneHoplinks, totlca, prunepc, totpc;
-int PCSPQueryIPrune(int s, int t){
-    optw = INF;
+double PCSPQueryIPrune(int s, int t){
+    optw = DBL_MAX;
     if (s == t)
         return 0;
     s--, t--;
@@ -608,15 +609,15 @@ int PCSPQueryIPrune(int s, int t){
                 continue;
             }
             for (int q = 0;q<MAX_es;q++){
-                int d1 = L1[s][ind].second.z[DFAq0][q];
-                if(d1!=INF){
+                double d1 = L1[s][ind].second.z[DFAq0][q];
+                if(d1!=DBL_MAX){
                     for (int q_ = 0;q_<MAX_es;q_++){
                         if(finalFlag[q_]){
-                            int d2 = L2[t][ind].second.z[q][q_];
-                            if(d2!=INF){
-                                optw = min(optw, d1 + d2);
-                                totpc++;
-                            }
+							double d2=L2[t][ind].second.z[q][q_];
+							if(d2!=DBL_MAX){
+								optw = min(optw, d1 + d2);
+								totpc++;
+							}
                         }
                     }
                 }
@@ -624,16 +625,16 @@ int PCSPQueryIPrune(int s, int t){
         }
     }
     //printf("%f\n", optw);
-    if(optw==INF)
+    if(optw==DBL_MAX)
         optw = -1;
     return optw;
 }
 
 struct edge{
     int from, to;
-    int weight;
+    double weight;
     char label;
-    edge(int a,int b,int w,char l){
+    edge(int a,int b,double w,char l){
         from = a, to = b, weight = w, label = l;
     }
 };
@@ -681,11 +682,11 @@ int main(int argc , char * argv[]){
         v--;
         cat2 = (cat2 > 5) ? 5 : cat2;
         char l = (cat1 - 'A') * 5 + cat2 - 1 + 'a';
-        //printf("%d %d %d %c%d %c\n", u, v, (int)(w), cat1, cat2, l);
+        //printf("%d %d %c%d %c\n", u, v, cat1, cat2, l);
         if (i % 2 == 0){
             adjo[u][v]=1;
             adjo[v][u]=1;
-            alledges.push_back(edge(u, v, (int)(w*100), l));
+            alledges.push_back(edge(u, v, w, l));
         }
     }
 	//regular expression to minimized DFA
@@ -729,7 +730,7 @@ int main(int argc , char * argv[]){
     for (int i = 0; i < alledges.size(); i++)
     {
         int f = alledges[i].from, t = alledges[i].to;
-        int w = alledges[i].weight;
+        double w = alledges[i].weight;
         if(T[f].ran>T[t].ran)
             swap(f, t);
         adjT[f][t] = 1;
@@ -737,9 +738,8 @@ int main(int argc , char * argv[]){
         HIID::iterator it;
         for (it = tmp.begin(); it != tmp.end();it++){
             HID::iterator iit;
-            for (iit = it->second.begin(); iit != it->second.end(); iit++){
+            for (iit = it->second.begin(); iit != it->second.end(); iit++)
                 adj[f][t].z[it->first][iit->first] = w;
-            }
         }
         adj[t][f] = adj[f][t];
     }
@@ -797,10 +797,10 @@ int main(int argc , char * argv[]){
     setres += string("Pruning Index Size ") + to_string((double)pindexsize * 4 / 1000000) + string("MB\n");
 
     cout << endl << "Querying... " << endl;
-
+    
     for (int qi = 0; qi < 1; qi++){//test a queryset
         vector<II> queryset;
-        vector<int> ans;
+        vector<double> ans;
         string s3 = string("../data/") + sfile + string("/") + string("q") + to_string(qi + 1);
         fp_query = fopen(s3.c_str(), "r");
         int qs, qt;
@@ -819,7 +819,7 @@ int main(int argc , char * argv[]){
     }
     for (int qi = 0; qi < 10; qi++){
         vector<II> queryset;
-        vector<int> ans;
+        vector<double> ans;
         pruneHoplinks = hopsize = prunepc = totlca = totpc = 0;
         string s3 = string("../data/") + sfile + string("/") + string("q") + to_string(qi + 1);
         fp_query = fopen(s3.c_str(), "r");
@@ -850,7 +850,7 @@ int main(int argc , char * argv[]){
 
         FILE *fp_out = fopen((prefix + sfile + string("q") + to_string(qi + 1) + string("PCSPResults")).c_str(), "w");
         for (int i = 0; i < ans.size(); i++)
-            fprintf(fp_out, "%d\n", ans[i]);
+            fprintf(fp_out, "%f\n", ans[i]);
         fclose(fp_out);
         setres += string("\n");
     }
